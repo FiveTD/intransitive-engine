@@ -1,4 +1,5 @@
 mod constants;
+mod events;
 mod model;
 mod resources;
 mod systems;
@@ -7,6 +8,7 @@ use bevy::log;
 use bevy::prelude::*;
 
 use crate::constants::*;
+use crate::events::*;
 use crate::resources::*;
 use crate::systems::*;
 
@@ -31,7 +33,8 @@ fn main() {
     )
     .insert_resource(ClearColor(BG_COLOR))
     .insert_resource(GameBoard::default())
-    .insert_resource(PieceEntities::default());
+    .insert_resource(PieceEntities::default())
+    .insert_resource(SelectedTile::default());
 
     app.add_systems(
         Startup,
@@ -40,7 +43,8 @@ fn main() {
             game::setup_board.before(render::spawn_board),
             render::spawn_board,
         ),
-    );
+    )
+    .add_systems(Update, (input::handle_mouse));
 
     app.run();
 }

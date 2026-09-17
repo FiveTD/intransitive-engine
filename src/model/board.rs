@@ -1,5 +1,5 @@
 use std::{
-    cmp::{max, min},
+    cmp::min,
     ops::{Index, IndexMut},
 };
 
@@ -93,26 +93,35 @@ impl Board {
         &mut self.data[idx]
     }
 
+    pub fn is_valid_move(&self, from_x: usize, from_y: usize, to_x: usize, to_y: usize) -> bool {
+        if !(0..self.size).contains(&from_x)
+            || !(0..self.size).contains(&from_y)
+            || !(from_x.saturating_sub(1)..min(from_x + 2, self.size)).contains(&to_x)
+            || !(from_y.saturating_sub(1)..min(from_y + 2, self.size)).contains(&to_y)
+        {
+            false
+        } else {
+            if let Some(from) = self[from_x][from_y] {
+                self[to_y][to_x].is_none_or(|to| {
+                    from.owner != to.owner
+                        && PieceType::resolve(from.piece_type, to.piece_type)
+                            .is_some_and(|t| t == from.piece_type)
+                })
+            } else {
+                false
+            }
+        }
+    }
+
     pub fn moves_from(&self, x: usize, y: usize) -> Vec<(usize, usize)> {
         let mut moves: Vec<(usize, usize)> = Vec::new();
-        let from = self[y][x];
-        let (from_type, from_owner) = if let Some(from) = from {
-            (from.piece_type, from.owner)
-        } else {
+        if self[y][x].is_none_or(|f| f.piece_type == PieceType::Capture) {
             return moves;
-        };
+        }
 
-        for iy in max(y - 1, 0)..min(y + 1, self.size - 1) {
-            for ix in max(x - 1, 0)..min(x + 1, self.size - 1) {
-                if (ix, iy) == (x, y) {
-                    continue;
-                }
-                let to = self[iy][ix];
-                if to.is_none_or(|to| {
-                    from_owner != to.owner
-                        && PieceType::resolve(from_type, to.piece_type)
-                            .is_some_and(|t| t == from_type)
-                }) {
+        for iy in y.saturating_sub(1)..min(y + 2, self.size) {
+            for ix in x.saturating_sub(1)..min(x + 2, self.size) {
+                if self.is_valid_move(x, y, ix, iy) {
                     moves.push((ix, iy));
                 }
             }

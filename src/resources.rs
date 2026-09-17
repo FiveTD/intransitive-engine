@@ -9,3 +9,6 @@ pub struct GameBoard(pub Board);
 
 #[derive(Resource, Default)]
 pub struct PieceEntities(pub HashMap<(usize, usize), Entity>);
+
+#[derive(Resource, Default)]
+pub struct SelectedTile(pub Option<(usize, usize)>);
