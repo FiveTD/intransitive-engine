@@ -58,6 +58,8 @@ pub struct Piece {
 
 const BOARD_DEFAULT_SIZE: usize = 9;
 
+pub type BoardPosition = (usize, usize);
+
 #[derive(Debug)]
 pub struct Board {
     size: usize,
@@ -76,7 +78,7 @@ impl Board {
         self.size
     }
 
-    fn index(&self, x: usize, y: usize) -> usize {
+    fn index(&self, (x, y): BoardPosition) -> usize {
         assert!(
             x < self.size && y < self.size,
             "coordinates out of bounds: ({x}, {y})",
@@ -84,25 +86,30 @@ impl Board {
         y * self.size + x
     }
 
-    pub fn tile(&self, x: usize, y: usize) -> &Option<Piece> {
-        &self.data[self.index(x, y)]
+    fn tile(&self, pos: BoardPosition) -> &Option<Piece> {
+        &self.data[self.index(pos)]
     }
 
-    pub fn tile_mut(&mut self, x: usize, y: usize) -> &mut Option<Piece> {
-        let idx = self.index(x, y);
+    fn tile_mut(&mut self, pos: BoardPosition) -> &mut Option<Piece> {
+        let idx = self.index(pos);
         &mut self.data[idx]
     }
 
-    pub fn is_valid_move(&self, from_x: usize, from_y: usize, to_x: usize, to_y: usize) -> bool {
-        if !(0..self.size).contains(&from_x)
-            || !(0..self.size).contains(&from_y)
-            || !(from_x.saturating_sub(1)..min(from_x + 2, self.size)).contains(&to_x)
-            || !(from_y.saturating_sub(1)..min(from_y + 2, self.size)).contains(&to_y)
+    pub fn move_piece(&mut self, from: BoardPosition, to: BoardPosition) {
+        self[to] = self[from];
+        self[from] = None;
+    }
+
+    pub fn is_valid_move(&self, (fx, fy): BoardPosition, (tx, ty): BoardPosition) -> bool {
+        if !(0..self.size).contains(&fx)
+            || !(0..self.size).contains(&fy)
+            || !(fx.saturating_sub(1)..min(fx + 2, self.size)).contains(&tx)
+            || !(fy.saturating_sub(1)..min(fy + 2, self.size)).contains(&ty)
         {
             false
         } else {
-            if let Some(from) = self[from_x][from_y] {
-                self[to_y][to_x].is_none_or(|to| {
+            if let Some(from) = self[fy][fx] {
+                self[ty][tx].is_none_or(|to| {
                     from.owner != to.owner
                         && PieceType::resolve(from.piece_type, to.piece_type)
                             .is_some_and(|t| t == from.piece_type)
@@ -113,15 +120,19 @@ impl Board {
         }
     }
 
-    pub fn moves_from(&self, x: usize, y: usize) -> Vec<(usize, usize)> {
-        let mut moves: Vec<(usize, usize)> = Vec::new();
-        if self[y][x].is_none_or(|f| f.piece_type == PieceType::Capture) {
+    pub fn moves_from(&self, pos: BoardPosition) -> Vec<BoardPosition> {
+        let mut moves: Vec<BoardPosition> = Vec::new();
+        if self
+            .tile(pos)
+            .is_none_or(|f| f.piece_type == PieceType::Capture)
+        {
             return moves;
         }
 
+        let (x, y) = pos;
         for iy in y.saturating_sub(1)..min(y + 2, self.size) {
             for ix in x.saturating_sub(1)..min(x + 2, self.size) {
-                if self.is_valid_move(x, y, ix, iy) {
+                if self.is_valid_move(pos, (ix, iy)) {
                     moves.push((ix, iy));
                 }
             }
@@ -200,5 +211,19 @@ impl IndexMut<usize> for Board {
         assert!(index < self.size);
         let row_index = index * self.size;
         &mut self.data[row_index..row_index + self.size]
+    }
+}
+
+impl Index<BoardPosition> for Board {
+    type Output = Option<Piece>;
+
+    fn index(&self, index: BoardPosition) -> &Self::Output {
+        &self.tile(index)
+    }
+}
+
+impl IndexMut<BoardPosition> for Board {
+    fn index_mut(&mut self, index: BoardPosition) -> &mut Self::Output {
+        self.tile_mut(index)
     }
 }

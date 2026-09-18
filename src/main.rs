@@ -1,3 +1,4 @@
+mod components;
 mod constants;
 mod events;
 mod model;
@@ -44,7 +45,9 @@ fn main() {
             render::spawn_board,
         ),
     )
-    .add_systems(Update, (input::handle_mouse));
+    .add_systems(Update, (input::handle_mouse))
+    .add_observer(render::animate_piece)
+    .add_observer(game::handle_move_piece);
 
     app.run();
 }

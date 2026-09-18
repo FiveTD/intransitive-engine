@@ -3,9 +3,7 @@ use std::ops::MulAssign;
 use bevy::prelude::*;
 use bevy::window::PrimaryWindow;
 
-use crate::constants::BOARD_TILE_SIZE;
-use crate::model::board::*;
-use crate::resources::*;
+use crate::{constants::BOARD_TILE_SIZE, events::MovePiece, model::board::*, resources::*};
 
 pub fn handle_mouse(
     mut commands: Commands,
@@ -13,7 +11,7 @@ pub fn handle_mouse(
     camera_q: Query<(&Camera, &GlobalTransform)>,
     buttons: Res<ButtonInput<MouseButton>>,
     mut selected_tile: ResMut<SelectedTile>,
-    mut board: ResMut<GameBoard>,
+    board: Res<GameBoard>,
 ) {
     if !buttons.any_just_pressed([MouseButton::Left, MouseButton::Right]) {
         return;
@@ -44,7 +42,7 @@ pub fn handle_mouse(
     let world_position = camera
         .viewport_to_world_2d(camera_transform, cursor_position)
         .unwrap();
-    let (x, y) = (world_position / BOARD_TILE_SIZE)
+    let pos: (usize, usize) = (world_position / BOARD_TILE_SIZE)
         .round()
         .as_ivec2()
         .saturating_mul(ivec2(1, -1))
@@ -53,12 +51,18 @@ pub fn handle_mouse(
         .into();
 
     if let Some(selected) = selected_tile.0 {
-        if board.0.is_valid_move(selected.0, selected.1, x, y) {
-            todo!();
+        if board.0.is_valid_move(selected, pos) {
+            selected_tile.0 = None;
+            commands.trigger(MovePiece {
+                from: selected,
+                to: pos,
+            });
+        } else if pos == selected {
+            selected_tile.0 = None;
         }
     } else {
-        if board.0[y][x].is_some_and(|p| p.piece_type != PieceType::Capture) {
-            selected_tile.0 = Some((x, y));
+        if board.0[pos].is_some_and(|p| p.piece_type != PieceType::Capture) {
+            selected_tile.0 = Some(pos);
         }
     }
 }

@@ -2,7 +2,7 @@
 
 use bevy::prelude::*;
 
-use crate::{constants::*, model::board::*, resources::*};
+use crate::{constants::*, events::MovePiece, model::board::*, resources::*};
 
 struct PieceMeshes {
     rock: Handle<Mesh>,
@@ -14,6 +14,14 @@ struct PieceMeshes {
 struct PlayerMaterials {
     piece: Handle<ColorMaterial>,
     capture: Handle<ColorMaterial>,
+}
+
+fn tile_coords_from_pos(pos: (usize, usize), board_size: usize) -> Vec2 {
+    let center_offset = BOARD_TILE_SIZE * ((board_size - 1) as f32 / 2.);
+    Vec2::new(
+        BOARD_TILE_SIZE * pos.0 as f32 - center_offset,
+        center_offset - BOARD_TILE_SIZE * pos.1 as f32, // put 0,0 in top left corner
+    )
 }
 
 pub fn spawn_camera(mut commands: Commands) {
@@ -28,7 +36,6 @@ pub fn spawn_board(
     mut piece_entities: ResMut<PieceEntities>,
 ) {
     let size = board.0.size();
-    let center_offset = BOARD_TILE_SIZE * ((size - 1) as f32 / 2.);
     debug!("Rendering board size: {size}");
 
     let tile_border_mesh =
@@ -54,12 +61,8 @@ pub fn spawn_board(
 
     for y in 0..size {
         for x in 0..size {
-            let tile_coords = Vec2::new(
-                BOARD_TILE_SIZE * x as f32 - center_offset,
-                center_offset - BOARD_TILE_SIZE * y as f32, // put 0,0 in top left corner
-            );
-
-            if let Some(tile) = board.0.tile(x, y) {
+            let tile_coords = tile_coords_from_pos((x, y), size);
+            if let Some(tile) = board.0[y][x] {
                 let color_index = usize::from(tile.owner);
                 match tile.piece_type {
                     PieceType::Capture => {
@@ -92,6 +95,28 @@ pub fn spawn_board(
                 MeshMaterial2d(tile_border_material.clone()),
                 Transform::from_translation(tile_coords.extend(1.0)),
             ));
+        }
+    }
+}
+
+pub fn animate_piece(
+    move_piece: On<MovePiece>,
+    mut pieces: ResMut<PieceEntities>,
+    mut piece_q: Query<&mut Transform>,
+    board: Res<GameBoard>,
+    mut commands: Commands,
+) {
+    if let Some(from_entity) = pieces.0.remove(&move_piece.from) {
+        if let Some(to_entity) = pieces.0.get(&move_piece.to) {
+            commands.entity(*to_entity).despawn();
+            // TODO: destruction animation
+        }
+        pieces.0.insert(move_piece.to, from_entity);
+
+        if let Ok(mut transform) = piece_q.get_mut(from_entity) {
+            let tile_coords = tile_coords_from_pos(move_piece.to, board.0.size());
+            transform.translation = tile_coords.extend(2.);
+            // TODO: movement animation
         }
     }
 }
