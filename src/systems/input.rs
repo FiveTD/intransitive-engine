@@ -1,5 +1,3 @@
-use std::ops::MulAssign;
-
 use bevy::prelude::*;
 use bevy::window::PrimaryWindow;
 
@@ -23,19 +21,12 @@ pub fn handle_mouse(
         return;
     }
 
-    let window = match windows.single() {
-        Ok(w) => w,
-        Err(_) => return,
+    let Ok(window) = windows.single() else { return };
+    let Some(cursor_position) = window.cursor_position() else {
+        return;
     };
-
-    let cursor_position = match window.cursor_position() {
-        Some(pos) => pos,
-        None => return,
-    };
-
-    let (camera, camera_transform) = match camera_q.single() {
-        Ok(c) => c,
-        Err(_) => return,
+    let Ok((camera, camera_transform)) = camera_q.single() else {
+        return;
     };
 
     // Convert to board position
@@ -57,12 +48,15 @@ pub fn handle_mouse(
                 from: selected,
                 to: pos,
             });
+            return;
         } else if pos == selected {
             selected_tile.0 = None;
+            return;
         }
-    } else {
-        if board.0[pos].is_some_and(|p| p.piece_type != PieceType::Capture) {
-            selected_tile.0 = Some(pos);
-        }
+    }
+    if board.0[pos]
+        .is_some_and(|p| p.piece_type != PieceType::Capture && p.owner == board.0.active_turn())
+    {
+        selected_tile.0 = Some(pos);
     }
 }

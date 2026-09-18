@@ -2,7 +2,13 @@
 
 use bevy::prelude::*;
 
-use crate::{constants::*, events::MovePiece, model::board::*, resources::*};
+use crate::{
+    components::{LegalMoveHighlight, SelectionHighlight},
+    constants::*,
+    events::MovePiece,
+    model::board::*,
+    resources::*,
+};
 
 struct PieceMeshes {
     rock: Handle<Mesh>,
@@ -14,6 +20,12 @@ struct PieceMeshes {
 struct PlayerMaterials {
     piece: Handle<ColorMaterial>,
     capture: Handle<ColorMaterial>,
+}
+
+#[derive(Resource)]
+pub struct LegalMoveHighlightAssets {
+    pub mesh: Handle<Mesh>,
+    pub material: Handle<ColorMaterial>,
 }
 
 fn tile_coords_from_pos(pos: (usize, usize), board_size: usize) -> Vec2 {
@@ -51,7 +63,7 @@ pub fn spawn_board(
         capture: meshes.add(Rectangle::new(BOARD_TILE_SIZE, BOARD_TILE_SIZE)),
     };
 
-    let player_materials: [PlayerMaterials; PLAYER_COLORS.len()] = std::array::from_fn(|i| {
+    let player_materials: [PlayerMaterials; MAX_PLAYERS as usize] = std::array::from_fn(|i| {
         let c = PLAYER_COLORS[i];
         PlayerMaterials {
             piece: materials.add(c),
@@ -96,6 +108,79 @@ pub fn spawn_board(
                 Transform::from_translation(tile_coords.extend(1.0)),
             ));
         }
+    }
+}
+
+pub fn setup_highlights(
+    mut commands: Commands,
+    mut meshes: ResMut<Assets<Mesh>>,
+    mut materials: ResMut<Assets<ColorMaterial>>,
+) {
+    debug!("Setting up highlights");
+    let mesh = meshes.add(Rectangle::new(BOARD_TILE_SIZE, BOARD_TILE_SIZE));
+    let legal_material = materials.add(LEGAL_MOVE_COLOR);
+
+    // Selection highlight
+    commands.spawn((
+        SelectionHighlight,
+        Mesh2d(mesh.clone()),
+        MeshMaterial2d(materials.add(SELECTION_COLOR)),
+        Transform::default(),
+        Visibility::Hidden,
+    ));
+
+    // Legal highlights
+    commands.insert_resource(LegalMoveHighlightAssets {
+        mesh,
+        material: legal_material,
+    })
+}
+
+pub fn update_selection_highlight(
+    selected: Res<SelectedTile>,
+    mut selection_highlight_q: Query<(&mut Transform, &mut Visibility), With<SelectionHighlight>>,
+    board: Res<GameBoard>,
+) {
+    debug!("Updating selection highlight");
+    let Ok((mut transform, mut visibility)) = selection_highlight_q.single_mut() else {
+        return;
+    };
+
+    match selected.0 {
+        Some(pos) => {
+            transform.translation = tile_coords_from_pos(pos, board.0.size()).extend(0.1);
+            *visibility = Visibility::Visible;
+        }
+        None => {
+            *visibility = Visibility::Hidden;
+        }
+    }
+}
+
+pub fn update_legal_move_highlights(
+    selection: Res<SelectedTile>,
+    board: Res<GameBoard>,
+    existing: Query<Entity, With<LegalMoveHighlight>>,
+    assets: Res<LegalMoveHighlightAssets>,
+    mut commands: Commands,
+) {
+    debug!("Despawning previous legal move highlights");
+    // Remove old highlights
+    for entity in &existing {
+        commands.entity(entity).despawn();
+    }
+
+    let Some(from) = selection.0 else { return };
+
+    debug!("Spawning new legal move highlights");
+    for to in board.0.moves_from(from) {
+        let tile_coords = tile_coords_from_pos(to, board.0.size());
+        commands.spawn((
+            LegalMoveHighlight,
+            Mesh2d(assets.mesh.clone()),
+            MeshMaterial2d(assets.material.clone()),
+            Transform::from_translation(tile_coords.extend(3.0)),
+        ));
     }
 }
 

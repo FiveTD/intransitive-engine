@@ -1,6 +1,12 @@
-// use bevy::prelude::*;
+use bevy::prelude::*;
 
 // use crate::model::board::BoardPosition;
+
+#[derive(Component)]
+pub struct SelectionHighlight;
+
+#[derive(Component)]
+pub struct LegalMoveHighlight;
 
 // #[derive(Component, Clone, Copy, Debug, PartialEq, Eq, Hash)]
 // pub struct PiecePosition {

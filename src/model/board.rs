@@ -3,6 +3,8 @@ use std::{
     ops::{Index, IndexMut},
 };
 
+use crate::constants::*;
+
 // ============ PIECE DATA ============
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -56,26 +58,32 @@ pub struct Piece {
 
 // ============ BOARD ============
 
-const BOARD_DEFAULT_SIZE: usize = 9;
-
 pub type BoardPosition = (usize, usize);
 
 #[derive(Debug)]
 pub struct Board {
     size: usize,
     data: Vec<Option<Piece>>,
+    num_players: u8,
+    active_turn: Player,
 }
 
 impl Board {
-    pub fn new(size: usize) -> Self {
+    pub fn new(size: usize, num_players: u8) -> Self {
         Self {
             size,
             data: vec![None; size * size],
+            num_players,
+            active_turn: Player(0),
         }
     }
 
     pub fn size(&self) -> usize {
         self.size
+    }
+
+    pub fn active_turn(&self) -> Player {
+        self.active_turn
     }
 
     fn index(&self, (x, y): BoardPosition) -> usize {
@@ -98,6 +106,10 @@ impl Board {
     pub fn move_piece(&mut self, from: BoardPosition, to: BoardPosition) {
         self[to] = self[from];
         self[from] = None;
+        self.active_turn.0 += 1;
+        if self.active_turn.0 >= self.num_players {
+            self.active_turn.0 = 0;
+        }
     }
 
     pub fn is_valid_move(&self, (fx, fy): BoardPosition, (tx, ty): BoardPosition) -> bool {
@@ -109,11 +121,12 @@ impl Board {
             false
         } else {
             if let Some(from) = self[fy][fx] {
-                self[ty][tx].is_none_or(|to| {
-                    from.owner != to.owner
-                        && PieceType::resolve(from.piece_type, to.piece_type)
-                            .is_some_and(|t| t == from.piece_type)
-                })
+                from.owner == self.active_turn
+                    && self[ty][tx].is_none_or(|to| {
+                        from.owner != to.owner
+                            && PieceType::resolve(from.piece_type, to.piece_type)
+                                .is_some_and(|t| t == from.piece_type)
+                    })
             } else {
                 false
             }
@@ -124,7 +137,7 @@ impl Board {
         let mut moves: Vec<BoardPosition> = Vec::new();
         if self
             .tile(pos)
-            .is_none_or(|f| f.piece_type == PieceType::Capture)
+            .is_none_or(|f| f.piece_type == PieceType::Capture || f.owner != self.active_turn)
         {
             return moves;
         }
@@ -143,24 +156,25 @@ impl Board {
 
     pub fn default_setup(&mut self) {
         // assert!(self.size == BOARD_DEFAULT_SIZE, "board is not default size");
+        let size = self.size;
 
         // Corner capture squares
-        self[0][BOARD_DEFAULT_SIZE - 1] = Some(Piece {
+        self[0][size - 1] = Some(Piece {
             piece_type: PieceType::Capture,
             owner: Player(0),
         });
-        self[BOARD_DEFAULT_SIZE - 1][0] = Some(Piece {
+        self[size - 1][0] = Some(Piece {
             piece_type: PieceType::Capture,
             owner: Player(1),
         });
 
         // Initial piece diagonal setup
-        for off in 1..BOARD_DEFAULT_SIZE - 4 {
+        for off in 1..size - 4 {
             self[off][off + 3] = Some(Piece {
                 piece_type: PieceType::Paper,
                 owner: Player(0),
             });
-            if off + 5 < BOARD_DEFAULT_SIZE {
+            if off + 5 < size {
                 self[off + 1][off + 3] = Some(Piece {
                     piece_type: PieceType::Scissors,
                     owner: Player(0),
@@ -176,7 +190,7 @@ impl Board {
                 piece_type: PieceType::Paper,
                 owner: Player(1),
             });
-            if off + 5 < BOARD_DEFAULT_SIZE {
+            if off + 5 < size {
                 self[off + 3][off + 1] = Some(Piece {
                     piece_type: PieceType::Scissors,
                     owner: Player(1),
@@ -192,7 +206,7 @@ impl Board {
 
 impl Default for Board {
     fn default() -> Self {
-        Self::new(BOARD_DEFAULT_SIZE)
+        Self::new(BOARD_SIZE, MAX_PLAYERS)
     }
 }
 
@@ -218,7 +232,7 @@ impl Index<BoardPosition> for Board {
     type Output = Option<Piece>;
 
     fn index(&self, index: BoardPosition) -> &Self::Output {
-        &self.tile(index)
+        self.tile(index)
     }
 }
 
