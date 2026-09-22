@@ -14,7 +14,6 @@ struct PieceMeshes {
     rock: Handle<Mesh>,
     paper: Handle<Mesh>,
     scissors: Handle<Mesh>,
-    capture: Handle<Mesh>,
 }
 
 struct PlayerMaterials {
@@ -23,9 +22,9 @@ struct PlayerMaterials {
 }
 
 #[derive(Resource)]
-pub struct LegalMoveHighlightAssets {
+pub struct TileHighlightAssets {
     pub mesh: Handle<Mesh>,
-    pub material: Handle<ColorMaterial>,
+    pub legal_material: Handle<ColorMaterial>,
 }
 
 fn tile_coords_from_pos(pos: (usize, usize), board_size: usize) -> Vec2 {
@@ -46,6 +45,7 @@ pub fn spawn_board(
     mut materials: ResMut<Assets<ColorMaterial>>,
     board: Res<GameBoard>,
     mut piece_entities: ResMut<PieceEntities>,
+    assets: Res<TileHighlightAssets>,
 ) {
     let size = board.0.size();
     debug!("Rendering board size: {size}");
@@ -60,7 +60,6 @@ pub fn spawn_board(
             .add(Rectangle::new(BOARD_PIECE_SIZE, BOARD_PIECE_SIZE).to_ring(BOARD_LINE_THICKNESS)),
         scissors: meshes
             .add(RegularPolygon::new(BOARD_PIECE_SIZE / 2., 6).to_ring(BOARD_LINE_THICKNESS)),
-        capture: meshes.add(Rectangle::new(BOARD_TILE_SIZE, BOARD_TILE_SIZE)),
     };
 
     let player_materials: [PlayerMaterials; MAX_PLAYERS as usize] = std::array::from_fn(|i| {
@@ -71,36 +70,25 @@ pub fn spawn_board(
         }
     });
 
+    // Spawn pieces and tile borders
     for y in 0..size {
         for x in 0..size {
             let tile_coords = tile_coords_from_pos((x, y), size);
             if let Some(tile) = board.0[y][x] {
                 let color_index = usize::from(tile.owner);
-                match tile.piece_type {
-                    PieceType::Capture => {
-                        commands.spawn((
-                            Mesh2d(piece_meshes.capture.clone()),
-                            MeshMaterial2d(player_materials[color_index].capture.clone()),
-                            Transform::from_translation(tile_coords.extend(0.0)),
-                        ));
-                    }
-                    piece_type => {
-                        let mesh = match piece_type {
-                            PieceType::Rock => piece_meshes.rock.clone(),
-                            PieceType::Paper => piece_meshes.paper.clone(),
-                            PieceType::Scissors => piece_meshes.scissors.clone(),
-                            PieceType::Capture => unreachable!(),
-                        };
-                        let piece_entity = commands
-                            .spawn((
-                                Mesh2d(mesh),
-                                MeshMaterial2d(player_materials[color_index].piece.clone()),
-                                Transform::from_translation(tile_coords.extend(2.0)),
-                            ))
-                            .id();
-                        piece_entities.0.insert((x, y), piece_entity);
-                    }
-                }
+                let mesh = match tile.piece_type {
+                    PieceType::Rock => piece_meshes.rock.clone(),
+                    PieceType::Paper => piece_meshes.paper.clone(),
+                    PieceType::Scissors => piece_meshes.scissors.clone(),
+                };
+                let piece_entity = commands
+                    .spawn((
+                        Mesh2d(mesh),
+                        MeshMaterial2d(player_materials[color_index].piece.clone()),
+                        Transform::from_translation(tile_coords.extend(2.0)),
+                    ))
+                    .id();
+                piece_entities.0.insert((x, y), piece_entity);
             }
             commands.spawn((
                 Mesh2d(tile_border_mesh.clone()),
@@ -108,6 +96,16 @@ pub fn spawn_board(
                 Transform::from_translation(tile_coords.extend(1.0)),
             ));
         }
+    }
+
+    // Spawn capture highlights
+    for (&p, &pos) in board.0.capture_tiles() {
+        let tile_coords = tile_coords_from_pos(pos, size);
+        commands.spawn((
+            Mesh2d(assets.mesh.clone()),
+            MeshMaterial2d(player_materials[p.0 as usize].capture.clone()),
+            Transform::from_translation(tile_coords.extend(0.0)),
+        ));
     }
 }
 
@@ -130,9 +128,9 @@ pub fn setup_highlights(
     ));
 
     // Legal highlights
-    commands.insert_resource(LegalMoveHighlightAssets {
+    commands.insert_resource(TileHighlightAssets {
         mesh,
-        material: legal_material,
+        legal_material,
     })
 }
 
@@ -161,7 +159,7 @@ pub fn update_legal_move_highlights(
     selection: Res<SelectedTile>,
     board: Res<GameBoard>,
     existing: Query<Entity, With<LegalMoveHighlight>>,
-    assets: Res<LegalMoveHighlightAssets>,
+    assets: Res<TileHighlightAssets>,
     mut commands: Commands,
 ) {
     debug!("Despawning previous legal move highlights");
@@ -178,7 +176,7 @@ pub fn update_legal_move_highlights(
         commands.spawn((
             LegalMoveHighlight,
             Mesh2d(assets.mesh.clone()),
-            MeshMaterial2d(assets.material.clone()),
+            MeshMaterial2d(assets.legal_material.clone()),
             Transform::from_translation(tile_coords.extend(3.0)),
         ));
     }

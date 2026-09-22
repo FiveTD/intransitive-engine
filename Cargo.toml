@@ -5,7 +5,8 @@ edition = "2024"
 
 [dependencies]
 bevy = { version = "0.19.1", features = ["bevy_dev_tools", "debug", "dynamic_linking"] }
-cargo-watch = "8.5.3"
+# cargo-watch = "8.5.3"
+minimax = { version = "0.1.0", path = "minimax" }
 slotmap = "1.1.1"
 strum = "0.28.0"
 strum_macros = "0.28.0"

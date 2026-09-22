@@ -1,7 +1,7 @@
 use bevy::prelude::*;
 use bevy::window::PrimaryWindow;
 
-use crate::{constants::BOARD_TILE_SIZE, events::MovePiece, model::board::*, resources::*};
+use crate::{constants::BOARD_TILE_SIZE, events::MovePiece, resources::*};
 
 pub fn handle_mouse(
     mut commands: Commands,
@@ -54,9 +54,7 @@ pub fn handle_mouse(
             return;
         }
     }
-    if board.0[pos]
-        .is_some_and(|p| p.piece_type != PieceType::Capture && p.owner == board.0.active_turn())
-    {
+    if board.0[pos].is_some_and(|p| p.owner == board.0.active_turn()) {
         selected_tile.0 = Some(pos);
     }
 }

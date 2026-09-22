@@ -41,8 +41,10 @@ fn main() {
         Startup,
         (
             render::spawn_camera,
-            game::setup_board.before(render::spawn_board),
-            render::spawn_board,
+            game::setup_board,
+            render::spawn_board
+                .after(render::setup_highlights)
+                .after(game::setup_board),
             render::setup_highlights,
         ),
     )
